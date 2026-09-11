@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Modelos de Proceso de Software</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e27; --surface: #141834; --surface-2: #1e2447;
+    --primary: #6366f1; --secondary: #ec4899; --accent: #06b6d4;
+    --success: #10b981; --warning: #f59e0b; --danger: #ef4444;
+    --text: #f1f5f9; --text-muted: #94a3b8; --border: #2a2f52;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  
+  /* Fondo animado */
+  .bg-animated { position: fixed; inset: 0; z-index: -1;
+    background: radial-gradient(circle at 20% 30%, rgba(99, 102, 241, 0.15), transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(236, 72, 153, 0.15), transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.1), transparent 70%);
+    animation: pulse 8s ease-in-out infinite alternate; }
+  @keyframes pulse { 0% { opacity: 0.6; transform: scale(1); } 100% { opacity: 1; transform: scale(1.1); } }
+
+  /* Hero */
+  .hero { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem; }
+  .hero h1 { font-size: clamp(2.5rem, 6vw, 5rem); font-weight: 700; background: linear-gradient(135deg, var(--primary), var(--secondary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 1rem; }
+  .hero p { font-size: clamp(1.1rem, 2vw, 1.5rem); color: var(--text-muted); margin-bottom: 2rem; }
+  .btn { padding: 1rem 2.5rem; background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; border: none; border-radius: 50px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3); }
+  .btn:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 15px 40px rgba(99, 102, 241, 0.5); }
+  section { padding: 5rem 2rem; max-width: 1200px; margin: 0 auto; }
+  h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin-bottom: 2rem; text-align: center; }
+  h2 span { background: linear-gradient(135deg, var(--accent), var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+  /* Tarjetas de Modelo */
+  .model-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem; }
+  .model-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; transition: all 0.3s ease; }
+  .model-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: 0 15px 40px rgba(99, 102, 241, 0.2); }
+  .model-header { padding: 1.5rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: var(--surface-2); }
+  .model-header h3 { font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem; }
+  .model-header .icon { font-size: 2rem; }
+  .model-body { padding: 0 1.5rem; max-height: 0; overflow: hidden; transition: max-height 0.5s ease-out; }
+  .model-body.active { max-height: 1200px; padding: 1.5rem; }
+  .model-body p { margin-bottom: 1rem; color: var(--text-muted); }
+  .model-body ul { list-style: none; padding-left: 0; }
+  .model-body li { padding: 0.5rem 0; padding-left: 1.5rem; position: relative; }
+  .model-body li::before { content: "→"; position: absolute; left: 0; color: var(--primary); }
+
+  /* Diagramas Visuales */
+  .diagram-container { margin: 1rem 0; padding: 1rem; background: var(--bg); border-radius: 10px; }
+  .cascade-diagram { display: flex; flex-direction: column; gap: 5px; }
+  .cascade-step { padding: 8px; background: linear-gradient(90deg, var(--primary), var(--secondary)); border-radius: 5px; text-align: center; font-size: 0.9rem; animation: slideIn 0.5s ease-out forwards; opacity: 0; }
+  .cascade-step:nth-child(1) { animation-delay: 0.1s; } .cascade-step:nth-child(2) { animation-delay: 0.3s; } .cascade-step:nth-child(3) { animation-delay: 0.5s; } .cascade-step:nth-child(4) { animation-delay: 0.7s; } .cascade-step:nth-child(5) { animation-delay: 0.9s; }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+  
+  .iterative-diagram { display: flex; justify-content: space-around; align-items: center; }
+  .iterative-circle { width: 80px; height: 80px; border-radius: 50%; background: conic-gradient(var(--accent), var(--primary), var(--accent)); display: flex; align-items: center; justify-content: center; font-weight: 700; animation: spin 4s linear infinite; }
+  .iterative-circle::after { content: "↻"; font-size: 2rem; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+  /* Roadmap */
+  .roadmap { display: flex; flex-direction: column; gap: 2rem; position: relative; }
+  .roadmap::before { content: ''; position: absolute; left: 30px; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--primary), var(--secondary)); border-radius: 2px; }
+  .roadmap-step { display: flex; gap: 2rem; position: relative; }
+  .step-number { width: 60px; height: 60px; border-radius: 50%; background: var(--surface-2); border: 4px solid var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 700; flex-shrink: 0; z-index: 1; }
+  .step-content { background: var(--surface); border: 1px solid var(--border); border-radius: 15px; padding: 1.5rem; flex-grow: 1; }
+  .step-content h4 { color: var(--accent); margin-bottom: 0.5rem; font-size: 1.3rem; }
+  .step-content p, .step-content ul { color: var(--text-muted); margin-bottom: 1rem; }
+  .step-content ul { padding-left: 1.5rem; }
+  .step-content li { margin-bottom: 0.5rem; }
+  .tool-badge { display: inline-block; padding: 0.3rem 0.8rem; background: var(--primary); border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-right: 0.5rem; margin-top: 0.5rem; }
+  .tool-badge.jira { background: #0052CC; } .tool-badge.drawio { background: #F08705; } .tool-badge.figma { background: #F24E1E; } .tool-badge.uizard { background: #7C3AED; }
+
+  /* Gráfico Radar */
+  .chart-container { background: var(--surface); border-radius: 20px; padding: 2rem; border: 1px solid var(--border); max-width: 700px; margin: 0 auto; }
+  footer { text-align: center; padding: 3rem 2rem; color: var(--text-muted); border-top: 1px solid var(--border); margin-top: 4rem; }
+</style>
+</head>
+<body>
+<div class="bg-animated"></div>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Simulador de Modelos de Proceso</h1>
+  <p>De la teoría a la práctica: elige tu estrategia y construye tu proyecto 🚀</p>
+  <button class="btn" onclick="document.getElementById('modelos').scrollIntoView({behavior:'smooth'})">Comenzar Desafío</button>
+</div>
+
+<!-- SECCIÓN DE MODELOS CON DIAGRAMAS -->
+<section id="modelos">
+  <h2>Explora los <span>4 Modelos</span></h2>
+  <div class="model-grid">
+    <!-- Cascada -->
+    <div class="model-card">
+      <div class="model-header" onclick="toggleModel(this)">
+        <h3>🌊 Modelo en Cascada</h3>
+        <span class="icon">▼</span>
+      </div>
+      <div class="model-body">
+        <p>Enfoque lineal y secuencial. Cada fase debe completarse antes de pasar a la siguiente. Ideal para requisitos estables y bien definidos.</p>
+        <div class="diagram-container">
+          <div class="cascade-diagram">
+            <div class="cascade-step">📋 Requisitos</div>
+            <div class="cascade-step">🎨 Diseño</div>
+            <div class="cascade-step">💻 Implementación</div>
+            <div class="cascade-step">🧪 Pruebas</div>
+            <div class="cascade-step">🚀 Despliegue</div>
+          </div>
+        </div>
+        <ul>
+          <li><strong>Ventaja:</strong> Estructura clara y fácil de gestionar.</li>
+          <li><strong>Desventaja:</strong> Poco flexible a cambios.</li>
+          <li><strong>Cuándo usar:</strong> Proyectos con requisitos fijos y bien conocidos.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Evolutivo -->
+    <div class="model-card">
+      <div class="model-header" onclick="toggleModel(this)">
+        <h3>🧬 Modelo Evolutivo</h3>
+        <span class="icon">▼</span>
+      </div>
+      <div class="model-body">
+        <p>Se construyen versiones sucesivas del sistema. Cada versión incorpora feedback del usuario, refinando los requisitos continuamente.</p>
+        <div class="diagram-container">
+          <div class="iterative-diagram">
+            <div class="iterative-circle"></div>
+            <div style="font-size: 1.2rem;">→ Versión 1 → Versión 2 → Versión 3</div>
+          </div>
+        </div>
+        <ul>
+          <li><strong>Ventaja:</strong> Se adapta a requisitos cambiantes.</li>
+          <li><strong>Desventaja:</strong> Difícil de planificar y gestionar.</li>
+          <li><strong>Cuándo usar:</strong> Proyectos con requisitos poco claros o cambiantes.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Iterativo -->
+    <div class="model-card">
+      <div class="model-header" onclick="toggleModel(this)">
+        <h3>🔄 Modelo Iterativo</h3>
+        <span class="icon">▼</span>
+      </div>
+      <div class="model-body">
+        <p>Se repiten ciclos sobre el mismo sistema, refinándolo. Cada iteración produce una versión más completa y cercana al objetivo final.</p>
+        <div class="diagram-container">
+          <div style="display: flex; justify-content: space-around; align-items: center;">
+            <div style="font-size: 2rem;">🔄</div>
+            <div style="display: flex; gap: 1rem;">
+              <span style="padding: 0.5rem; background: var(--surface-2); border-radius: 5px;">Iter 1</span>
+              <span style="padding: 0.5rem; background: var(--surface-2); border-radius: 5px;">Iter 2</span>
+              <span style="padding: 0.5rem; background: var(--surface-2); border-radius: 5px;">Iter 3</span>
+            </div>
+          </div>
+        </div>
+        <ul>
+          <li><strong>Ventaja:</strong> Permite descubrir problemas y mejorar progresivamente.</li>
+          <li><strong>Desventaja:</strong> Puede generar retrabajo si no se gestiona bien.</li>
+          <li><strong>Cuándo usar:</strong> Proyectos complejos donde el refinamiento es clave.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Incremental -->
+    <div class="model-card">
+      <div class="model-header" onclick="toggleModel(this)">
+        <h3>📦 Modelo Incremental</h3>
+        <span class="icon">▼</span>
+      </div>
+      <div class="model-body">
+        <p>Se entregan partes funcionales (incrementos) del sistema. Cada incremento es usable y aporta valor al usuario desde temprano.</p>
+        <div class="diagram-container">
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div style="padding: 8px; background: var(--success); border-radius: 5px; text-align: center;">Incremento 1 (Módulo A)</div>
+            <div style="padding: 8px; background: var(--accent); border-radius: 5px; text-align: center;">Incremento 2 (Módulo B)</div>
+            <div style="padding: 8px; background: var(--primary); border-radius: 5px; text-align: center;">Incremento 3 (Módulo C)</div>
+          </div>
+        </div>
+        <ul>
+          <li><strong>Ventaja:</strong> El usuario ve resultados parciales desde temprano.</li>
+          <li><strong>Desventaja:</strong> Requiere una buena planificación de módulos.</li>
+          <li><strong>Cuándo usar:</strong> Proyectos grandes que se pueden dividir en módulos.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GRÁFICO COMPARATIVO -->
+<section>
+  <h2>Comparación <span>Visual</span></h2>
+  <div class="chart-container">
+    <canvas id="radarChart"></canvas>
+  </div>
+</section>
+
+<!-- SECCIÓN DE DESAFÍO PRÁCTICO (ROADMAP DETALLADO) -->
+<section id="desafio">
+  <h2>Desafío: <span>Simulador de Proyectos</span></h2>
+  <p style="text-align: center; color: var(--text-muted); margin-bottom: 1rem; font-size: 1.2rem;"><strong>Trabajen en tríos o pares.</strong> Elijan un escenario y sigan el roadmap paso a paso.</p>
+
+  <!-- Detalle de Escenarios -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 3rem;">
+    <div style="background: var(--surface-2); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--accent);">
+      <h4 style="color: var(--accent); margin-bottom: 0.5rem;">🏥 Escenario A: Sistema de Turnos Médicos</h4>
+      <p style="font-size: 0.95rem; color: var(--text-muted);">El centro de salud tiene 10 especialistas y 5 administrativos. Usan planillas de Excel y agenda de papel. Los pacientes se quejan por demoras y los médicos no ven su agenda actualizada. La dirección no tiene claro qué reportes necesita.</p>
+      <p style="font-size: 0.9rem; margin-top: 0.5rem;"><strong>Pista:</strong> Los requisitos son cambiantes y el usuario no sabe bien qué quiere.</p>
+    </div>
+    <div style="background: var(--surface-2); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--success);">
+      <h4 style="color: var(--success); margin-bottom: 0.5rem;">🚚 Escenario B: App de Delivery "Ya Llego"</h4>
+      <p style="font-size: 0.95rem; color: var(--text-muted);">La empresa quiere lanzar una app para pedidos de comida. Quieren empezar solo con el módulo de pedidos, luego agregar el seguimiento del repartidor en tiempo real y, finalmente, el módulo de pagos.</p>
+      <p style="font-size: 0.9rem; margin-top: 0.5rem;"><strong>Pista:</strong> Se puede dividir en partes y entregar valor de a poco.</p>
+    </div>
+    <div style="background: var(--surface-2); padding: 1.5rem; border-radius: 12px; border-left: 4px solid var(--warning);">
+      <h4 style="color: var(--warning); margin-bottom: 0.5rem;">📦 Escenario C: Sistema de Inventario "StockSeguro"</h4>
+      <p style="font-size: 0.95rem; color: var(--text-muted);">Una ferretería mayorista necesita un sistema para controlar su inventario. Los procesos están perfectamente documentados y son estables desde hace años.</p>
+      <p style="font-size: 0.9rem; margin-top: 0.5rem;"><strong>Pista:</strong> Los requisitos están claros y no van a cambiar.</p>
+    </div>
+  </div>
+
+  <div class="roadmap">
+    <!-- Paso 1 -->
+    <div class="roadmap-step">
+      <div class="step-number">1</div>
+      <div class="step-content">
+        <h4>Selección de Estrategia (15 min)</h4>
+        <p>Analicen su escenario y <strong>justifiquen la elección</strong> del modelo de proceso con al menos dos argumentos basados en las características del proyecto.</p>
+        <span class="tool-badge">Análisis Conceptual</span>
+        <span class="tool-badge">Debate en Trío</span>
+      </div>
+    </div>
+
+    <!-- Paso 2 -->
+    <div class="roadmap-step">
+      <div class="step-number">2</div>
+      <div class="step-content">
+        <h4>Modelado Visual del Proceso (15 min)</h4>
+        <p>Creen un <strong>diagrama de flujo</strong> que represente el modelo elegido. <strong>Mínimo:</strong> 3 cajas (Inicio, Proceso, Fin). <strong>Máximo:</strong> 7 cajas.</p>
+        <span class="tool-badge drawio">draw.io</span>
+        <div style="margin-top: 1rem; padding: 0.8rem; background: var(--bg); border-radius: 8px; font-size: 0.9rem;">
+          <strong>Instrucciones APB:</strong> Abran draw.io, elijan "Blank Diagram". Arrastren formas (rectángulos, rombos) y conéctenlas con flechas. Doble clic para escribir. Exporten como PNG.
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 3 -->
+    <div class="roadmap-step">
+      <div class="step-number">3</div>
+      <div class="step-content">
+        <h4>Planificación Ágil con Jira (15 min)</h4>
+        <p>Si su modelo es Iterativo o Incremental, <strong>creen un tablero Kanban en Jira</strong>. Desglosen su proyecto en al menos 3 'Historias de Usuario' y 5 'Tareas'.</p>
+        <span class="tool-badge jira">Jira Software (Gratis)</span>
+        <div style="margin-top: 1rem; padding: 0.8rem; background: var(--bg); border-radius: 8px; font-size: 0.9rem;">
+          <strong>Instrucciones APB:</strong> Regístrense en Jira, creen un proyecto con plantilla "Kanban". En el "Backlog", creen Historias (ej: "Como paciente, quiero turnos online"). Dentro de cada una, agreguen Tareas. Arrastren las tarjetas entre columnas.
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 4 -->
+    <div class="roadmap-step">
+      <div class="step-number">4</div>
+      <div class="step-content">
+        <h4>Diseño de Interfaz con IA (15 min)</h4>
+        <p>Diseñen un <strong>wireframe de baja fidelidad</strong> de la pantalla principal. <strong>Usen IA para generarlo a partir de un prompt</strong>. El objetivo es comunicar la idea.</p>
+        <span class="tool-badge uizard">Uizard (IA)</span>
+        <span class="tool-badge figma">Figma</span>
+        <div style="margin-top: 1rem; padding: 0.8rem; background: var(--bg); border-radius: 8px; font-size: 0.9rem;">
+          <strong>Prompt de IA (copiar y pegar):</strong><br>
+          "Genera un wireframe de baja fidelidad para la pantalla principal de un <strong>[APP/SISTEMA]</strong> llamada <strong>[NOMBRE]</strong>. Debe tener: 1. Encabezado con nombre e ícono de usuario. 2. Barra de búsqueda. 3. Lista o tabla con elementos principales. 4. Botón de acción principal flotante. 5. Barra de navegación inferior con 3 íconos. Estilo minimalista, blanco y negro, líneas simples."
+          <br><br>
+          <strong>Instrucciones APB:</strong> Vayan a uizard.io, regístrense gratis. Hagan clic en "Crear nuevo" > "Generar con IA". Peguen el prompt adaptado a su escenario. ¡Listo! Exporten el wireframe generado.
+        </div>
+      </div>
+    </div>
+
+    <!-- Paso 5 -->
+    <div class="roadmap-step">
+      <div class="step-number">5</div>
+      <div class="step-content">
+        <h4>Presentación de Resultados (10 min)</h4>
+        <p>Cada trío tendrá <strong>3 minutos</strong> para presentar. Deberán mostrar en pantalla: 1) Su decisión del modelo y por qué, 2) El diagrama de draw.io, 3) El tablero de Jira, y 4) El wireframe generado con IA.</p>
+        <span class="tool-badge">Presentación Oral</span>
+        <span class="tool-badge">Defensa del Proyecto</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>Ingeniería de Requerimientos I — Eje Temático N.° 2 — Semana 5</p>
+  <p style="font-size: 0.8rem; margin-top: 0.5rem;">Usando herramientas gratuitas para un aprendizaje práctico y profesional.</p>
+</footer>
+
+<script>
+  // Función para expandir/colapsar tarjetas de modelo
+  function toggleModel(header) {
+    const body = header.nextElementSibling;
+    const icon = header.querySelector('.icon');
+    body.classList.toggle('active');
+    if (body.classList.contains('active')) {
+      icon.textContent = '▲';
+    } else {
+      icon.textContent = '▼';
+    }
+  }
+
+  // Radar Chart
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: ['Estabilidad requisitos', 'Riesgo', 'Participación usuario', 'Velocidad entrega', 'Flexibilidad al cambio'],
+      datasets: [
+        { label: 'Cascada', data: [5, 4, 2, 2, 1], borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.2)', borderWidth: 2 },
+        { label: 'Evolutivo', data: [1, 3, 5, 3, 5], borderColor: '#ec4899', backgroundColor: 'rgba(236, 72, 153, 0.2)', borderWidth: 2 },
+        { label: 'Iterativo', data: [2, 3, 4, 4, 4], borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.2)', borderWidth: 2 },
+        { label: 'Incremental', data: [3, 2, 4, 5, 3], borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.2)', borderWidth: 2 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#f1f5f9', font: { family: 'Space Grotesk', size: 14 } } } },
+      scales: { r: { angleLines: { color: 'rgba(148, 163, 184, 0.2)' }, grid: { color: 'rgba(148, 163, 184, 0.2)' }, pointLabels: { color: '#94a3b8', font: { size: 12 } }, ticks: { display: false, max: 5, min: 0 } } }
+    }
+  });
+</script>
+
+</body>
+</html>
